@@ -33,6 +33,6 @@ This example shows the network was dissuaded by the left part of the cross-arm o
 However, it is reassured strongly by the vacant area around the arm (attributed positively / in orange).
 This suggests this part of the image is important for the network in distinguishing it from a "9" (the second most highly scored numeral in this example).
 
-## Correspondance
+## Correspondence
 
 For communication regarding this project, please contact David Drakard <research@ddrakard.com>.
