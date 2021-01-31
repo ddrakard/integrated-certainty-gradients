@@ -70,8 +70,8 @@ if __name__ == '__main__':
     #    sample_index = 832
     #    sample_index= 321
     #    sample_index = 3955
-    #    sample_index = 3956
-        sample_index = 7772
+        sample_index = 3956
+    #   sample_index = 7772
     #    sample_index = 333
         image = (tensor_tools
                  .Selection()[sample_index:sample_index + 1, ...]
@@ -83,6 +83,16 @@ if __name__ == '__main__':
         print('Predicted value: ' + str(tf.argmax(results, axis=1).numpy()[0]))
         print(results)
 
+        def image_integrated_gradients(baseline_value):
+            return integrated_gradients.integrated_gradients(
+                image, model,
+                pixel_certainty.disregard_certainty(
+                    tf.fill(image.shape, baseline_value)))
+
+        zero_integrated_gradients = image_integrated_gradients(0.0)
+        middle_integrated_gradients = image_integrated_gradients(0.5)
+        double_sided_integrated_gradients = (image_integrated_gradients(1.0)
+            + zero_integrated_gradients) / 2.0
         gradients = integrated_gradients.classifier_gradients(image, model)
         attribution = integrated_gradients\
             .image_certainty_integrated_gradients(image, model)
@@ -110,6 +120,31 @@ if __name__ == '__main__':
                 title='Certainty gradient')
             .add_two_channel_positive_white(
                 gradients[0], True, title='Combined gradients')
+            .add_single_channel(
+                zero_integrated_gradients[0], True,
+                title='Zero integrated gradients')
+            .add_single_channel(
+                middle_integrated_gradients[0], True,
+                title='Middle integrated gradients')
+            .add_single_channel(
+                double_sided_integrated_gradients[0], True,
+                title='Double sided integrated gradients')
+            .new_row()
+            .add_single_channel(
+                feature_removal.simple_feature_removal(
+                    discard_certainty(image[0]), model),
+                True, title='Simple feature removal')
+            .add_single_channel(
+                feature_removal.simple_feature_removal(
+                    discard_certainty(image[0]), model, 0.5),
+                True, title='Midpoint feature removal')
+            .add_single_channel(
+                feature_removal.double_sided_feature_removal(
+                    discard_certainty(image[0]), model),
+                True, title='Double sided feature removal')
+            .add_single_channel(
+                feature_removal.feature_certainty_removal(image[0], model),
+                True, title='Feature certainty removal')
             .add_single_channel(attribution[0], True, title='Attribution')
             .add_overlay(
                 image_tensors.remap_channel(
@@ -120,22 +155,6 @@ if __name__ == '__main__':
                         tf.expand_dims(attribution[0], -1), 10),
                     0, -1.0, 1.0, 0.),
                 title='Overlaid attribution')
-            .new_row()
-            .add_single_channel(
-                feature_removal.simple_feature_removal(
-                    discard_certainty(image[0]), model),
-                True, title='Simple feature removal')
-            .add_single_channel(
-                feature_removal.double_sided_feature_removal(
-                    discard_certainty(image[0]), model),
-                True, title='Double sided feature removal')
-            .add_single_channel(
-                feature_removal.simple_feature_removal(
-                    discard_certainty(image[0]), model, 0.5),
-                True, title='Midpoint feature removal')
-            .add_single_channel(
-                feature_removal.feature_certainty_removal(image[0], model),
-                True, title='Feature certainty removal')
             .show()
          )
 
