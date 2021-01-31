@@ -6,6 +6,7 @@ This project demonstrates *Integrated Certainty Gradients*.
 This is a new method of feature attribution for neural networks, a method to identify which parts of an input are most important for the output prediction.
 It is based on the *Integrated Gradients* method (http://arxiv.org/abs/1703.01365).
 Unlike Integrated Gradients it does not require a choice of *baseline* input, which resolves a practical and theoretical complication for methods of this type.
+For more information, please refer to the in-progress paper: [Use of Quantified Uncertainty in Integrated Gradient Attribution Baselines](Use of Quantified Uncertainty in Integrated Gradient Attribution Baselines.pdf).
 
 The project also includes some other related attribution visualisation methods.
 
