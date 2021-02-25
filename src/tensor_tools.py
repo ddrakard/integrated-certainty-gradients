@@ -1,4 +1,4 @@
-from typing import List, Callable
+from typing import List, Callable, Collection
 
 import numpy as np
 import tensorflow as tf
@@ -314,10 +314,32 @@ class Coordinates:
                     self._indices[index] += 1
 
     def __init__(self, shape):
+        if isinstance(shape, tf.Tensor):
+            shape = shape.shape
         self._shape = shape
 
     def __iter__(self):
         return self.Iterator(self._shape)
+
+
+def safe_axis(axis, context):
+    """
+        Prevents axis arithmetic errors by adding 1 to axis -1 and getting 0
+        when len(tensor) semantics are desired instead.
+
+        :param axis: The index of the axis which needs to be made safe.
+        :param context: The tensor, tensor.shape, or len(tensor.shape) which
+            the axis is indexing.
+        :returns: A positive axis index which has the same meaning as the
+            original value for the context.
+    """
+    if isinstance(context, tf.Tensor):
+        context = context.shape
+    if not isinstance(context, int):
+        context = len(context)
+    if axis < 0:
+        axis += context
+    return axis
 
 
 def index_tensor(shape) -> tf.Tensor:
@@ -334,3 +356,59 @@ def index_tensor(shape) -> tf.Tensor:
         return tf.convert_to_tensor([], dtype=tf.int8)
     data = tf.constant(list(Coordinates(shape)))
     return tf.reshape(data, shape + [len(shape)])
+
+
+def pick(
+        source: tf.Tensor, count: int, axis: int = 0, seed: int = None
+        ) -> tf.Tensor:
+    """
+        Randomly sample from the tensor 'count' times to make a new
+        distribution.
+
+        :param source:
+        :param count: The number of times to pick from the original tensor.
+        :param axis: The axis of the input tensor to choose from.
+        :param seed: A Python integer. Used in combination with
+            tf.random.set_seed to create a reproducible sequence of tensors
+            across multiple calls.
+        :returns: A new tensor made from a list of randomly chosen subtensors.
+    """
+    choices = tf.random.uniform(
+        [count], minval=0, maxval=source.shape[axis], dtype=tf.int32,
+        seed=seed)
+    return tf.gather(source, choices, axis)
+
+
+def axis_outer_operation(
+        axis: int, tensors: Collection[tf.Tensor],
+        operation: Callable) -> tf.Tensor:
+    """
+        Apply an operation to tensors with all element-wise combinations of
+        elements from multiple tensors along the given axis.
+
+        "Outer" is meant to indicate axes in the inputs becoming axes in the
+        output (as with outer product).
+    """
+    axis = safe_axis(axis, tensors[0])
+    axis_sizes = [tensor.shape[axis] for tensor in tensors]
+    # How many tensors are there apart from whatever tensor we are considering
+    # at the time.
+    trailing_axes = len(tensors[0].shape) - axis - 1
+    other_tensors_count = len(tensors) - 1
+    for tensor_index in range(len(tensors)):
+        # Build the shape (added axes size 1, other axes original size)
+        shape = list(tensors[tensor_index].shape)
+        shape[axis+1:axis+1] = [1] * (other_tensors_count - tensor_index)
+        shape[axis:axis] = [1] * tensor_index
+        # Build the multiples (added axes final size, other axes size 1)
+        multiples = [1] * axis
+        for added_axis in range(len(tensors)):
+            if added_axis == tensor_index:
+                multiples.append(1)
+            else:
+                multiples.append(axis_sizes[added_axis])
+        multiples += [1] * trailing_axes
+        reshaped = tf.reshape(tensors[tensor_index], shape)
+        tensors[tensor_index] = tf.tile(
+            reshaped, multiples)
+    return operation(tensors)

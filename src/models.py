@@ -24,8 +24,8 @@ def value_confidence_image_classifier() -> keras.Model:
     """
     number_of_classes = 10
     model = keras.Sequential()
-    model.add(keras.Conv2D(32, kernel_size=(3, 3), activation='relu',
-                           input_shape=(28, 28, 2)))
+    model.add(keras.Conv2D(
+        32, kernel_size=(3, 3), activation='relu', input_shape=(28, 28, 2)))
     model.add(keras.Conv2D(64, (3, 3), activation='relu'))
     model.add(keras.MaxPooling2D(pool_size=(2, 2)))
     model.add(keras.Dropout(0.25))

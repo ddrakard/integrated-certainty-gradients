@@ -1,6 +1,7 @@
 import tensorflow as tf
 
-from tensor_tools import Selection, Coordinates, index_tensor
+from tensor_tools import Selection, Coordinates, index_tensor, pick, \
+    axis_outer_operation
 from tests.utilities import sample_tensor, TensorflowTestCase
 
 
@@ -106,4 +107,57 @@ class Test_index_tensor(TensorflowTestCase):
         self.assertTensorEqual(
             sample_tensor(),
             tf.gather_nd(sample_tensor(), index_tensor(sample_tensor().shape))
+        )
+
+
+class Test_pick(TensorflowTestCase):
+
+    random_seed = 678
+
+    def sample_tensor_subtensors(self, list):
+        """
+            Create a tensor by picking a list of subtensors of the sample
+            tensor along its first axis.
+        """
+        tensor = sample_tensor(3, 3)
+        return [tensor[index] for index in list]
+
+    def test_zero_count(self):
+        """ Pick no tensors to get an empty tensor. """
+        self.assertTensorEqual(
+            pick(sample_tensor(3, 3), 0, seed=self.random_seed),
+            tf.zeros((0, 3, 3), dtype=tf.int32))
+
+    def test_one_count(self):
+        """ Randomly pick one tensor. """
+        self.assertTensorEqual(
+            pick(sample_tensor(3, 3), 1, seed=self.random_seed),
+            tf.stack(self.sample_tensor_subtensors([0])))
+
+    def test_many_count(self):
+        """ Randomly pick 10 tensors. """
+        self.assertTensorEqual(
+            pick(sample_tensor(3, 3), 10, seed=self.random_seed),
+            tf.stack(self.sample_tensor_subtensors(
+                [1, 2, 1, 0, 0, 1, 0, 2, 2, 1])))
+
+
+class Test_axis_outer_operation(TensorflowTestCase):
+
+    def test_last_axis(self):
+        """ Check for correct handling of axis arithmetic on -1. """
+        self.assertTensorEqual(
+            axis_outer_operation(
+                -1, [sample_tensor(3, 2), sample_tensor(3, 2)],
+                lambda tensors: 10000 * tensors[0] + tensors[1]),
+            [
+                [
+                    [[1110111, 1110112], [1120111, 1120112]],
+                    [[1210121, 1210122], [1220121, 1220122]],
+                ],
+                [
+                    [[2110211, 2110212], [2120211, 2120212]],
+                    [[2210221, 2210222], [2220221, 2220222]],
+                ]
+            ]
         )

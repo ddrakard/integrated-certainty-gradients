@@ -24,6 +24,7 @@ class TensorflowTestCase(unittest.TestCase):
         shape_message = 'The provided tensors do not have the same shape'
         if message is None:
             shape_message += '.'
+            message = 'The tensors are not equal.'
         else:
             shape_message += ': ' + message
         self.assertEqual(

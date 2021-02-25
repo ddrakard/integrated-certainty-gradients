@@ -71,11 +71,14 @@ if __name__ == '__main__':
     #    sample_index= 321
     #    sample_index = 3955
         sample_index = 3956
-    #   sample_index = 7772
+    #    sample_index = 7772
     #    sample_index = 333
-        image = (tensor_tools
-                 .Selection()[sample_index:sample_index + 1, ...]
-                 .apply(dataset))
+
+        image = (
+            tensor_tools
+            .Selection()[sample_index:sample_index + 1, ...]
+            .apply(dataset)
+        )
 
         # x_test_damaged.gather([470], axis=0)
         print('considering confidence:')
@@ -83,18 +86,18 @@ if __name__ == '__main__':
         print('Predicted value: ' + str(tf.argmax(results, axis=1).numpy()[0]))
         print(results)
 
-        def image_integrated_gradients(baseline_value):
-            return integrated_gradients.integrated_gradients(
-                image, model,
-                pixel_certainty.disregard_certainty(
-                    tf.fill(image.shape, baseline_value)))
+        expected_gradients = integrated_gradients.integrated_gradients(
+            image, model, dataset, True, 500)
 
-        zero_integrated_gradients = image_integrated_gradients(0.0)
-        middle_integrated_gradients = image_integrated_gradients(0.5)
-        double_sided_integrated_gradients = (image_integrated_gradients(1.0)
-            + zero_integrated_gradients) / 2.0
+        baseline_distribution = tensor_tools.pick(dataset, 500)
+        distribution_baseline = tf.reduce_mean(baseline_distribution, 0)
+        distribution_integrated_gradients = \
+            integrated_gradients.integrated_gradients(
+                image, model, distribution_baseline)
+
         gradients = integrated_gradients.classifier_gradients(image, model)
-        attribution = integrated_gradients\
+
+        certainty_gradients = integrated_gradients\
             .image_certainty_integrated_gradients(image, model)
 
         print('ignoring confidence:')
@@ -110,25 +113,35 @@ if __name__ == '__main__':
             .add_unsigned_lightness_scale('Combined', minimum=-1.0)
             .add_two_channel_positive_saturated(
                 image[0], title='Source image')
+            # .add_two_channel_positive_saturated(
+            #   image_value[0], title='Image value')
             .add_two_channel_positive_saturated(
-                image_value[0], title='Image value')
+                distribution_baseline, title='Distribution baseline')
             .new_row()
             .add_single_channel(
                 discard_certainty(gradients[0]), True, title='Value gradient')
             .add_single_channel(
                 pixel_certainty.discard_value(gradients[0]), True,
                 title='Certainty gradient')
-            .add_two_channel_positive_white(
-                gradients[0], True, title='Combined gradients')
+            # .add_two_channel_positive_white(
+            #    gradients[0], True, title='Combined gradients')
             .add_single_channel(
-                zero_integrated_gradients[0], True,
-                title='Zero integrated gradients')
+                integrated_gradients.simple_integrated_gradients(
+                    image, model, 0.0)[0],
+                True, title='Zero integrated gradients')
             .add_single_channel(
-                middle_integrated_gradients[0], True,
-                title='Middle integrated gradients')
+                integrated_gradients.simple_integrated_gradients(
+                    image, model, 0.5)[0],
+                True, title='Middle integrated gradients')
             .add_single_channel(
-                double_sided_integrated_gradients[0], True,
-                title='Double sided integrated gradients')
+                integrated_gradients.double_sided_integrated_gradients(
+                    image, model)[0],
+                True, title='Double sided integrated gradients')
+            .add_single_channel(
+                expected_gradients[0], True, title='Expected gradients')
+            .add_single_channel(
+                distribution_integrated_gradients[0], True,
+                title='Distribution integrated gradients')
             .new_row()
             .add_single_channel(
                 feature_removal.simple_feature_removal(
@@ -145,16 +158,17 @@ if __name__ == '__main__':
             .add_single_channel(
                 feature_removal.feature_certainty_removal(image[0], model),
                 True, title='Feature certainty removal')
-            .add_single_channel(attribution[0], True, title='Attribution')
+            .add_single_channel(
+                certainty_gradients[0], True, title='Certainty gradients')
             .add_overlay(
                 image_tensors.remap_channel(
                     pixel_certainty.discard_certainty(image[0]),
                     0, 0., 1., -0.5, 0.5),
                 image_tensors.normalize_channel_centered(
                     image_tensors.brighten(
-                        tf.expand_dims(attribution[0], -1), 10),
+                        tf.expand_dims(certainty_gradients[0], -1), 10),
                     0, -1.0, 1.0, 0.),
-                title='Overlaid attribution')
+                title='Overlaid certainty gradients')
             .show()
          )
 
