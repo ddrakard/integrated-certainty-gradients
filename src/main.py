@@ -28,7 +28,6 @@ if __name__ == '__main__':
     if train_model:
         generations = 1
         epochs = 1
-        number_of_classes = 10
         batch_size = 128
         model_tools.ensure_directory_exists('statistics')
         statistics_file = model_tools.unique_path(
@@ -38,21 +37,17 @@ if __name__ == '__main__':
             print('generation ' + str(generation + 1)
                   + ' / ' + str(generations))
             dataset = data.damaged_data()
-            # convert class vectors to binary class matrices
-            y_train = keras.utils.to_categorical(
-                dataset.y_train(), number_of_classes)
-            y_test = keras.utils.to_categorical(
-                dataset.y_test(), number_of_classes)
             model.compile(
                 loss=keras.losses.categorical_crossentropy,
                 optimizer=keras.optimizers.Adadelta(),
                 metrics=['accuracy']
             )
             history = model.fit(
-                dataset.x_train(), y_train, batch_size=batch_size,
+                dataset.x_train(), dataset.y_train(), batch_size=batch_size,
                 epochs=epochs, verbose=1,
-                validation_data=(dataset.x_test(), y_test))
-            score = model.evaluate(dataset.x_test(), y_test, verbose=0)
+                validation_data=(dataset.x_test(), dataset.y_test()))
+            score = model.evaluate(
+                dataset.x_test(), dataset.y_test(), verbose=0)
             print('Test loss:', score[0])
             print('Test accuracy:', score[1])
             model_tools.safe_save_model(model, 'models/active/model')
