@@ -73,6 +73,24 @@ class Dataset:
             callback(self._y_test))
 
 
+def combine(data: typing.List[Dataset]) -> Dataset:
+    """
+        Combine entries from multiple datasets in randomly shuffled order. Test
+        and training data is kept separated.
+    """
+    combined = []
+    for sequence_name in ('x_train', 'y_train', 'x_test', 'y_test'):
+        sequences = list(map(
+            lambda dataset: getattr(dataset, sequence_name)(),
+            data))
+        combined.append(tf.concat(sequences, 0))
+    for pair in ((0, 1), (2, 3)):
+        indices = tf.random.shuffle(range(combined[pair[0]].shape[0]))
+        for index in pair:
+            combined[index] = tf.gather(combined[index], indices)
+    return Dataset(*combined)
+
+
 def mnist_data() -> Dataset:
     """
         :return: The MNIST dataset (http://yann.lecun.com/exdb/mnist/) of
@@ -107,8 +125,8 @@ def mnist_data_with_certainty() -> Dataset:
 
 
 def damaged_data(
-        binary_damage: bool = True, adversarial_damage: bool = True)\
-        -> Dataset:
+        binary_damage: bool = True, adversarial_damage: bool = True
+        ) -> Dataset:
     """
         The MNIST dataset (see mnist_data) with an additional "certainty"
         channel added and then "damaged" (see
@@ -120,7 +138,7 @@ def damaged_data(
     x_train_shuffled = tf.random.shuffle(dataset.x_train())
     dataset = dataset.transform_x(pixel_certainty.add_certainty_channel)
 
-    def apply_damage(data, binary_damage=False, adversarial_damage=False):
+    def apply_damage(data, binary_damage, adversarial_damage):
         if binary_damage:
             damage_tensor = tf.cast(
                 tf.random.uniform(
@@ -137,10 +155,38 @@ def damaged_data(
             data, damage_tensor=damage_tensor, background_tensor=damage_data)
 
     return Dataset(
-        apply_damage(
-            dataset.x_train(), binary_damage=binary_damage,
-            adversarial_damage=adversarial_damage),
+        apply_damage(dataset.x_train(), binary_damage, adversarial_damage),
         dataset.y_train(),
-        apply_damage(dataset.x_test()),
+        apply_damage(dataset.x_test(), False, False),
         dataset.y_test()
     )
+
+
+def baseline_data():
+    """
+        Returns a dataset where the pixel certainty is uniformly 0.0, the y
+        values are equiprobable across all categories, and the pixel values
+        are taken from the mnist dataset.
+
+        This data assumes an equiprobable choice for unknown data is
+        appropriate, rather than reflexting the distribution in the original
+        dataset, if it is not balanced between all categories.
+
+        :return: The "baseline" Dataset.
+    """
+    return (
+        mnist_data()
+        .transform_x(
+            lambda data : pixel_certainty.add_certainty_channel(data, 0.))
+        .transform_y(lambda data: tf.fill(data.shape, 1. / data.shape[-1]))
+    )
+
+
+def mixed_data():
+    """
+        A combination of full-certainty mnist data, adversarially damaged data,
+        and baseline data.
+    """
+    return combine([
+        mnist_data_with_certainty(), damaged_data(False), damaged_data(),
+        baseline_data()])

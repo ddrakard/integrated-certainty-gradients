@@ -36,7 +36,7 @@ if __name__ == '__main__':
         for generation in range(0, generations):
             print('generation ' + str(generation + 1)
                   + ' / ' + str(generations))
-            dataset = data.damaged_data()
+            dataset = data.mixed_data()
             model.compile(
                 loss=keras.losses.categorical_crossentropy,
                 optimizer=keras.optimizers.Adadelta(),
@@ -59,47 +59,34 @@ if __name__ == '__main__':
                     statistics_file, header=None, mode='a')
 
     if display_images:
+
         dataset = data.mnist_data_with_certainty().x_test()
-    #    dataset = data.damaged_data().x_test()
+        sample_index = 3955
 
-    #    sample_index = 832
-    #    sample_index= 321
-    #    sample_index = 3955
-        sample_index = 3956
-    #    sample_index = 7772
-    #    sample_index = 333
+        image = tf.gather(dataset, [sample_index], axis=0)
 
-        image = (
-            tensor_tools
-            .Selection()[sample_index:sample_index + 1, ...]
-            .apply(dataset)
-        )
-
-        # x_test_damaged.gather([470], axis=0)
         print('considering confidence:')
         results = model.predict(image)
         print('Predicted value: ' + str(tf.argmax(results, axis=1).numpy()[0]))
         print(results)
-
-        expected_gradients = integrated_gradients.integrated_gradients(
-            image, model, dataset, True, 500)
-
-        baseline_distribution = tensor_tools.pick(dataset, 500)
-        distribution_baseline = tf.reduce_mean(baseline_distribution, 0)
-        distribution_integrated_gradients = \
-            integrated_gradients.integrated_gradients(
-                image, model, distribution_baseline)
-
-        gradients = integrated_gradients.classifier_gradients(image, model)
-
-        certainty_gradients = integrated_gradients\
-            .image_certainty_integrated_gradients(image, model)
-
         print('ignoring confidence:')
         image_value = pixel_certainty.disregard_certainty(image)
         results = model.predict(image_value)
         print('Predicted value: ' + str(tf.argmax(results, axis=1).numpy()[0]))
         print(results)
+        print('baseline values:')
+        print(model.predict(pixel_certainty.disregard_certainty(image, 0.)))
+
+        expected_gradients = integrated_gradients.integrated_gradients(
+            image, model, dataset, True, 500)
+        baseline_distribution = tensor_tools.pick(dataset, 500)
+        distribution_baseline = tf.reduce_mean(baseline_distribution, 0)
+        distribution_integrated_gradients = \
+            integrated_gradients.integrated_gradients(
+                image, model, distribution_baseline)
+        gradients = integrated_gradients.classifier_gradients(image, model)
+        certainty_gradients = integrated_gradients\
+            .image_certainty_integrated_gradients(image, model)
 
         (image_tensors.ImagePlot()
             .add_hue_scale('Value')
