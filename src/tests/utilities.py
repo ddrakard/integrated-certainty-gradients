@@ -1,3 +1,7 @@
+"""
+    Code to be shared between tests.
+"""
+
 import unittest
 
 import tensorflow as tf
@@ -20,7 +24,10 @@ class TensorflowTestCase(unittest.TestCase):
         The unittest.TestCase class augmented for convenience with tensorflow.
     """
 
-    def assertTensorEqual(self, first, second, message=None):
+    def assert_tensor_equal(self, first, second, message=None):
+        """
+            Fail unless the tensors are element-wise equal.
+        """
         shape_message = 'The provided tensors do not have the same shape'
         if message is None:
             shape_message += '.'

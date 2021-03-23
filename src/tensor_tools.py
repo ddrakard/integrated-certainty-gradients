@@ -1,16 +1,21 @@
-from typing import List, Callable, Collection
+"""
+    Tools for working with and modifying tensors.
 
-import numpy as np
+
+    Note on terminology
+
+    The name "axes_count" is used for the number of axes of a tensor for lack
+    of knowing a better option. Although "rank" is used in Tensorflow, it is
+    avoided because it is ambiguous, in mathematics it refers to the dimension
+    of the span of a matrix. "order" is also potentially confusing and "degree"
+    is not apparently common.
+"""
+
+import typing
+from typing import List, Callable
+
 import tensorflow as tf
-
-"""
-    ## Note on terminology ##
-
-    The names "axes_count" is used for the number of axes of a tensor for lack
-    of knowing a better option. The name "rank" is ambiguous, in mathematics it
-    refers to the dimension of the span of a matrix. "order" is also
-    potentially confusing and "degree" is not apparently common.
-"""
+from tensorflow.python.ops import summary_ops_v2
 
 
 class Selection:
@@ -43,10 +48,11 @@ class Selection:
         self._slices[axis] = self._cast_slice(the_slice)
         return self
 
-    def select_channel(self, axis: int, channel: int,
-                       remove_axis: bool = False) -> 'Selection':
+    def select_channel(
+            self, axis: int, channel: int, remove_axis: bool = False
+            ) -> 'Selection':
         """
-            Slice a single index ("channel") of a single axis.
+            Slice down to a single index ("channel") on one axis.
 
             :param axis: The axis to restrict.
             :param channel: The only index to be selected in the axis.
@@ -56,13 +62,13 @@ class Selection:
         """
         if remove_axis:
             raise Exception('Axis removal is not implemented.')  # TODO
-        stop = channel + 1
+        stop: typing.Optional[int] = channel + 1
         if stop == 0:
             stop = None
         self.slice_axis(axis, slice(channel, stop))
         return self
 
-    def __getitem__(*arguments) -> 'Selection':
+    def __getitem__(self, arguments: typing.Any) -> 'Selection':
         """
             Specify axes to slice.
 
@@ -78,15 +84,13 @@ class Selection:
                 and optionally an ellipsis at any point.
             :return: self
         """
-        if not isinstance(arguments[0], Selection):
-            # Called as a class method
-            return Selection()[arguments[1]]
-        self = arguments[0]
-        arguments = arguments[1]
         if not isinstance(arguments, tuple):
             # unfortunately __getitem__ treats single and multiple arguments
             # differently
-            arguments = tuple(arguments)
+            arguments = tuple([arguments])
+        if not isinstance(self, Selection):
+            # Called as a class method
+            return Selection()[arguments]
         if self._axes_count is not None:
             if (len(arguments) > self._axes_count or (
                     len(arguments) < self._axes_count
@@ -126,7 +130,9 @@ class Selection:
             raise Exception('Selection does not have a fixed degree.')
         return self._axes_count
 
-    def slices(self, input_axes_count=None) -> List[slice]:
+    def slices(
+            self, input_axes_count: typing.Optional[int] = None
+            ) -> List[slice]:
         """
             Get a list of slices equivalent to the Selection.
 
@@ -161,7 +167,8 @@ class Selection:
             result[index] = defined_slice
         return result
 
-    def shape(self, input_shape) -> List[int]:
+    def shape(
+            self, input_shape: tf.TensorShape) -> List[int]:
         """
             Get the shape that a tensor would have after undergoing this
             Selection.
@@ -180,6 +187,7 @@ class Selection:
             if the_slice.start is None:
                 start = 0
             elif the_slice.start < 0:
+                # TODO: Check in slice
                 start = input_shape[axis] + the_slice.start
             else:
                 # TODO: Check in slice
@@ -188,7 +196,7 @@ class Selection:
                 stop = input_shape[axis]
             elif the_slice.stop < 0:
                 # TODO: Check in slice
-                stop = input_shape[axis] + 1 + the_slice.stop
+                stop = input_shape[axis] + the_slice.stop
             else:
                 # TODO: Check in slice
                 stop = the_slice.stop
@@ -196,7 +204,8 @@ class Selection:
                 step = 1
             else:
                 step = the_slice.step
-            result[axis] = ((stop - start - 1) // abs(step)) + 1
+            unstepped_length = stop - start
+            result[axis] = ((unstepped_length - 1) // abs(step)) + 1
         return result
 
     def apply(self, tensor: tf.Tensor) -> tf.Tensor:
@@ -209,8 +218,9 @@ class Selection:
         """
         return tensor[self.slices(len(tensor.shape))]
 
-    def transform(self, transformation: Callable[[tf.Tensor], tf.Tensor],
-                  tensor: tf.Tensor) -> tf.Tensor:
+    def transform(
+            self, transformation: Callable[[tf.Tensor], tf.Tensor],
+            tensor: tf.Tensor) -> tf.Tensor:
         """
             Apply a change to the the selected part of the tensor.
 
@@ -226,8 +236,9 @@ class Selection:
         selection.assign(transformation(selection))
         return tf.convert_to_tensor(result.numpy())
 
-    def mask(self, shape, positive=np.float32(1.),
-             negative=np.float32(0.)) -> tf.Tensor:
+    def mask(
+            self, shape: tf.TensorShape, positive: float = 1.,
+            negative: float = 0.) -> tf.Tensor:
         """
             Create a tensor where all the areas which would be selected by this
             Selection have the positive value, and all other areas have the
@@ -240,10 +251,10 @@ class Selection:
                 not be selected by this Selection.
             :return: The mask tensor.
         """
-        return self.multiplex(tf.fill(shape, positive),
-                              tf.fill(shape, negative))
+        return self.multiplex(
+            tf.fill(shape, positive), tf.fill(shape, negative))
 
-    def multiplex(self, update, baseline) -> tf.Tensor:
+    def multiplex(self, update: tf.Tensor, baseline: tf.Tensor) -> tf.Tensor:
         """
             Replace areas of a tensor that are selected by this Selection with
             values from another tensor.
@@ -268,7 +279,8 @@ class Selection:
         selection.assign(tf.fill(self.shape(baseline_shape), True))
         return tf.where(mask, update, baseline)
 
-    def _cast_slice(self, value):
+    @staticmethod
+    def _cast_slice(value: typing.Any) -> slice:
         """
             Handle nicely the values passed to for selecting on axes.
         """
@@ -278,10 +290,10 @@ class Selection:
             raise Exception(
                 'Selection by integer is not supported currently pending '
                 + 'decision whether to remove axis or not.')
-            if value == -1:
-                return slice(value, None)
-            else:
-                return slice(value, value + 1)
+            # if value == -1:
+            #    return slice(value, None)
+            # else:
+            #    return slice(value, value + 1)
         else:
             raise ValueError(
                 'Unrecognised value passed for Selection slice: ' + str(value))
@@ -293,6 +305,7 @@ class Coordinates:
     """
 
     class Iterator:
+        """ The iterator to return for the class. """
         def __init__(self, shape):
             self._shape = shape
             self._indices = [0] * len(shape)
@@ -342,7 +355,7 @@ def safe_axis(axis, context):
     return axis
 
 
-def index_tensor(shape) -> tf.Tensor:
+def index_tensor(shape: tf.TensorShape) -> tf.Tensor:
     """
         Returns a tensor of the indices of a tensor with a shape the same as
         the shape argument.
@@ -380,7 +393,7 @@ def pick(
 
 
 def axis_outer_operation(
-        axis: int, tensors: Collection[tf.Tensor],
+        axis: int, tensors: typing.List[tf.Tensor],
         operation: Callable) -> tf.Tensor:
     """
         Apply an operation to tensors with all element-wise combinations of
@@ -395,9 +408,9 @@ def axis_outer_operation(
     # at the time.
     trailing_axes = len(tensors[0].shape) - axis - 1
     other_tensors_count = len(tensors) - 1
-    for tensor_index in range(len(tensors)):
+    for tensor_index, tensor in enumerate(tensors):
         # Build the shape (added axes size 1, other axes original size)
-        shape = list(tensors[tensor_index].shape)
+        shape = list(tensor.shape)
         shape[axis+1:axis+1] = [1] * (other_tensors_count - tensor_index)
         shape[axis:axis] = [1] * tensor_index
         # Build the multiples (added axes final size, other axes size 1)
@@ -408,7 +421,20 @@ def axis_outer_operation(
             else:
                 multiples.append(axis_sizes[added_axis])
         multiples += [1] * trailing_axes
-        reshaped = tf.reshape(tensors[tensor_index], shape)
+        reshaped = tf.reshape(tensor, shape)
         tensors[tensor_index] = tf.tile(
             reshaped, multiples)
     return operation(tensors)
+
+
+def log_function_graph(
+        function: typing.Callable, log_directory: str = 'graph_output'
+        ) -> None:
+    """
+        Save the graph of a tensorflow function.
+    """
+    writer = tf.summary.create_file_writer(log_directory)
+    with writer.as_default():
+        graph = tf.function(function).get_concrete_function().graph
+        summary_ops_v2.graph(graph.as_graph_def(), step=0)
+    writer.close()

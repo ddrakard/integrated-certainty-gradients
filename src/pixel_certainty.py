@@ -1,3 +1,8 @@
+"""
+    Utilities for working with images having an uncertainty channel (at the
+    last channel in their last axis).
+"""
+
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability
@@ -5,7 +10,9 @@ import tensorflow_probability
 import tensor_tools
 
 
-def add_certainty_channel(images: tf.Tensor, certainty_value=1.0) -> tf.Tensor:
+def add_certainty_channel(
+        images: tf.Tensor, certainty_value: float = 1.0,
+        add_axis: bool = False) -> tf.Tensor:
     """
         Add an additional channel to the last axis of a tensor to represent the
         certainty of the values.
@@ -13,8 +20,12 @@ def add_certainty_channel(images: tf.Tensor, certainty_value=1.0) -> tf.Tensor:
         :param images: A Tensor representing images with pixel values in the
             last axis.
         :param certainty_value: The value of elements in the certainty channel.
+        :param add_axis: Add a new axis to the end of axes to insert the
+            certainty channel into.
         :return: A Tensor with an additional channel in the last axis.
     """
+    if add_axis:
+        images = tf.expand_dims(images, -1)
     pads = ([(0, 0)] * (len(images.shape) - 1)) + [(0, 1)]
     return tf.pad(images, pads, constant_values=np.float32(certainty_value))
 
@@ -29,8 +40,8 @@ def disregard_certainty(image, new_certainty=np.float32(1.)):
         :return: The modified tensor.
     """
     certainty_channel = tensor_tools.Selection()[..., -1:None]
-    return certainty_channel.multiplex(tf.fill(image.shape, new_certainty),
-                                       image)
+    return certainty_channel.multiplex(
+        tf.fill(image.shape, new_certainty), image)
 
 
 def discard_certainty(images: tf.Tensor) -> tf.Tensor:
@@ -44,16 +55,38 @@ def discard_certainty(images: tf.Tensor) -> tf.Tensor:
     return tf.gather(images, range(0, images.shape[-1] - 1), axis=-1)
 
 
-def discard_value(image):
+def discard_value(image: tf.Tensor) -> tf.Tensor:
     """
         Removes all channels except the last one (the certainty channel) of the
         last axis.
     """
-    return tensor_tools.Selection()[..., -1:].apply(image)
+    return image[..., -1:]
 
 
-def certainty_mild_damage_distribution(damage_severity=np.float32(0.2)) \
-        -> tensorflow_probability.distributions.Distribution:
+def collapse_value_channels(images: tf.Tensor) -> tf.Tensor:
+    """
+         Collapse the value (non-certainty) channels down to a single greyscale
+         channel.
+    """
+    value = discard_certainty(images)
+    certainty = discard_value(images)
+    greyscale = tf.reduce_mean(value, axis=-1, keepdims=True)
+    return tf.concat([greyscale, certainty], axis=-1)
+
+
+def collapse_certainty_to_brightness(images: tf.Tensor) -> tf.Tensor:
+    """
+        Scale the brightness of each pixel by its certainty and discard the
+        certainty channel.
+    """
+    value = discard_certainty(images)
+    certainty = discard_value(images)
+    return value * certainty
+
+
+def certainty_mild_damage_distribution(
+        damage_severity: float = 0.2
+        ) -> tensorflow_probability.distributions.Distribution:
     """
         Provides a distribution from which to sample damage amounts for use
         with damage_certainty, with a mild to moderate amount of confidence
@@ -67,8 +100,9 @@ def certainty_mild_damage_distribution(damage_severity=np.float32(0.2)) \
         np.float32(1.), damage_severity, np.float32(0.), np.float32(1.))
 
 
-def certainty_high_damage_distribution(certainty_residue=np.float32(0.5)) \
-        -> tensorflow_probability.distributions.Distribution:
+def certainty_high_damage_distribution(
+        certainty_residue: float = 0.5
+        ) -> tensorflow_probability.distributions.Distribution:
     """
         Provides a distribution from which to sample damage amounts for use
         with damage_certainty, this distribution results in mostly damage.
@@ -110,13 +144,14 @@ def damage_certainty(images: tf.Tensor, damage_tensor: tf.Tensor = None,
     value_data = discard_certainty(images)
     if damage_tensor is None:
         damage_tensor = certainty_mild_damage_distribution(
-            np.float32(1.0)).sample(value_data.shape)
+            np.float32(1.0)).sample(tf.shape(value_data))
     if background_tensor is None:
-        background_tensor = tf.random.uniform(value_data.shape)
+        background_tensor = tf.random.uniform(tf.shape(value_data))
     channel_count = images.shape[-1] - 1  # excluding the certainty channel
     certainty_data = tf.gather(images, [channel_count], axis=-1)
     damaged_certainty = certainty_data * damage_tensor
-    random_tensor = tf.random.uniform(certainty_data.shape)
-    damaged_values = tf.where(tf.greater(random_tensor, damage_tensor),
-                              background_tensor, value_data)
+    random_tensor = tf.random.uniform(tf.shape(certainty_data))
+    damaged_values = tf.where(
+        tf.greater(random_tensor, damage_tensor),
+        background_tensor, value_data)
     return tf.concat([damaged_values, damaged_certainty], -1)

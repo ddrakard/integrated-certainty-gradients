@@ -1,3 +1,10 @@
+"""
+    This module provides capabilities for working with image tensors. These
+    are represented as tensors whose last three axes are row, column, and
+    channel respectively. The channel axis commonly represents red, green, blue
+    components when of size 3 and lightness/brightness when of size 1.
+"""
+import typing
 import math
 
 import matplotlib.pyplot as pyplot
@@ -31,7 +38,7 @@ class ImagePlot:
                 xlabel: str: Display this text next to the x axis.
                 ylabel: str: Display this text next to the y axis.
         """
-        figure, axes = pyplot.subplots(self._rows, self._columns)
+        _, axes = pyplot.subplots(self._rows, self._columns)
         if self._rows == 1:
             axes = [axes]
         if self._columns == 1:
@@ -42,45 +49,55 @@ class ImagePlot:
                 # 'missing' axes
                 current_axes.set_visible(False)
         for index, image in enumerate(self._images):
-            position = self._positions[index]
-            current_axes = axes[position[0]][position[1]]
-            current_axes.set_visible(True)
-            parameters = self._parameters[index]
-            if 'ymin' in parameters:
-                y_minimum = parameters['ymin']
-            else:
-                y_minimum = 0.0
-            if 'ymax' in parameters:
-                y_maximum = parameters['ymax']
-            else:
-                y_maximum = 1.0
-            if 'xmin' in parameters:
-                x_minimum = parameters['xmin']
-            else:
-                x_minimum = 0.0
-            if 'xmax' in parameters:
-                x_maximum = parameters['xmax']
-            else:
-                shape = image.shape
-                x_maximum = (y_maximum - y_minimum) * shape[1] / shape[0]
-            current_axes.imshow(
-                image, extent=[x_minimum, x_maximum, y_minimum, y_maximum])
-            current_axes.get_xaxis().set_visible(False)
-            current_axes.get_yaxis().set_visible(False)
-            if 'xaxis' in parameters and parameters['xaxis']:
-                current_axes.get_xaxis().set_visible(True)
-            if 'yaxis' in parameters and parameters['yaxis']:
-                current_axes.get_yaxis().set_visible(True)
-            if 'xlabel' in parameters:
-                current_axes.get_xaxis().set_label_text(parameters['xlabel'])
-            if 'ylabel' in parameters:
-                current_axes.get_yaxis().set_label_text(parameters['ylabel'])
-            if 'title' in parameters:
-                current_axes.set_title(parameters['title'])
+            try:
+                position = self._positions[index]
+                current_axes = axes[position[0]][position[1]]
+                current_axes.set_visible(True)
+                parameters = self._parameters[index]
+                if 'ymin' in parameters:
+                    y_minimum = parameters['ymin']
+                else:
+                    y_minimum = 0.0
+                if 'ymax' in parameters:
+                    y_maximum = parameters['ymax']
+                else:
+                    y_maximum = 1.0
+                if 'xmin' in parameters:
+                    x_minimum = parameters['xmin']
+                else:
+                    x_minimum = 0.0
+                if 'xmax' in parameters:
+                    x_maximum = parameters['xmax']
+                else:
+                    shape = image.shape
+                    x_maximum = (y_maximum - y_minimum) * shape[1] / shape[0]
+                current_axes.imshow(
+                    image, extent=[x_minimum, x_maximum, y_minimum, y_maximum])
+                current_axes.get_xaxis().set_visible(False)
+                current_axes.get_yaxis().set_visible(False)
+                if 'xaxis' in parameters and parameters['xaxis']:
+                    current_axes.get_xaxis().set_visible(True)
+                if 'yaxis' in parameters and parameters['yaxis']:
+                    current_axes.get_yaxis().set_visible(True)
+                if 'xlabel' in parameters:
+                    current_axes.get_xaxis().set_label_text(
+                        parameters['xlabel'])
+                if 'ylabel' in parameters:
+                    current_axes.get_yaxis().set_label_text(
+                        parameters['ylabel'])
+                if 'title' in parameters:
+                    current_axes.set_title(parameters['title'])
+            except Exception as exception:
+                message = 'Exception showing graph number ' + str(index + 1)
+                if 'title' in parameters:
+                    message += ' titled "' + str(parameters['title']) + '"'
+                message += ': ' + str(exception)
+                raise Exception(message) from exception
         pyplot.show()
 
-    def add_hue_scale(self, label: str = None, minimum: int = 0.0,
-                      maximum: int = 1.0) -> 'ImagePlot':
+    def add_hue_scale(
+            self, label: str = None, minimum: float = 0.0,
+            maximum: float = 1.0) -> 'ImagePlot':
         """
             Display a scale to indicate the numerical meaning of hues.
 
@@ -98,7 +115,8 @@ class ImagePlot:
         return self
 
     def add_unsigned_saturation_scale(
-            self, label: str = None, minimum: int = 0.0, maximum: int = 1.0):
+            self, label: str = None, minimum: float = 0.0,
+            maximum: float = 1.0) -> 'ImagePlot':
         """
             Display a scale to indicate the numerical meaning of saturation.
 
@@ -119,7 +137,8 @@ class ImagePlot:
         return self
 
     def add_signed_saturation_scale(
-            self, label: str = None, minimum: int = -1.0, maximum: int = 1.0):
+            self, label: typing.Optional[str] = None, minimum: float = -1.0,
+            maximum: float = 1.0) -> 'ImagePlot':
         """
             Display a scale to indicate the numerical meaning of saturation,
             from blue to black to orange.
@@ -141,7 +160,8 @@ class ImagePlot:
         return self
 
     def add_unsigned_lightness_scale(
-            self, label: str = None, minimum: int = 0.0, maximum: int = 1.0):
+            self, label: str = None, minimum: float = 0.0,
+            maximum: float = 1.0) -> 'ImagePlot':
         """
             Display a scale to indicate the numerical meaning of lightness,
             from near-black to saturated color to near-white.
@@ -165,7 +185,8 @@ class ImagePlot:
         return self
 
     def add_signed_lightness_scale(
-            self, label: str = None, minimum: int = -1.0, maximum: int = 1.0):
+            self, label: str = None, minimum: float = -1.0,
+            maximum: float = 1.0) -> 'ImagePlot':
         """
             Display a scale to indicate the numerical meaning of lightness,
             from blue-white to blue to black to orange to orange-white.
@@ -177,14 +198,16 @@ class ImagePlot:
                 the scale
             :return: self
         """
-        image = np.linspace(np.outer([1.0] * 20, [1.0]),
-                            np.outer([1.0] * 20, [-1.0]), 256)
-        self.add_single_channel(image, yaxis=True, ylabel=label,
-                                ymin=minimum, ymax=maximum)
+        image = np.linspace(
+            np.outer([1.0] * 20, [1.0]), np.outer([1.0] * 20, [-1.0]), 256)
+        self.add_single_channel(
+            image, yaxis=True, ylabel=label, ymin=minimum, ymax=maximum)
         return self
 
     def add_single_channel(
-            self, image, normalize: bool = False, **parameters) -> 'ImagePlot':
+            self, image: tf.Tensor, normalize: bool = False,
+            **parameters: typing.Any
+            ) -> 'ImagePlot':
         """
             Display a single channel image, in false color. The image can have
             positive or negative values.
@@ -196,6 +219,10 @@ class ImagePlot:
             :return: self
         """
         if image.shape[-1] != 1:
+            if len(image.shape) == 3:
+                raise ValueError(
+                    'The image has multiple channels. Shape: '
+                    + str(image.shape))
             image = tf.expand_dims(image, axis=-1)
         if normalize:
             image = normalize_channel_centered(image, 0, -1.0, 1.0, 0.0)
@@ -203,7 +230,7 @@ class ImagePlot:
             single_channel_to_false_color_rgb(image), **parameters)
 
     def add_two_channel_positive_saturated(
-            self, image, **parameters) -> 'ImagePlot':
+            self, image: tf.Tensor, **parameters: typing.Any) -> 'ImagePlot':
         """
             Display a two unsigned channel image.
 
@@ -214,11 +241,13 @@ class ImagePlot:
             :param parameters: See ImagePlot class docstring.
             :return: self
         """
-        return self.add_rgb_image(two_channel_to_positive_saturated_rgb(image),
-                                  **parameters)
+        return self.add_rgb_image(
+            two_channel_to_positive_saturated_rgb(image), **parameters)
 
-    def add_two_channel_positive_white(self, image, normalize: bool = False,
-                                       **parameters) -> 'ImagePlot':
+    def add_two_channel_positive_white(
+            self, image: tf.Tensor, normalize: bool = False,
+            **parameters: typing.Any
+            ) -> 'ImagePlot':
         """
             Display a two signed channel image.
 
@@ -235,11 +264,12 @@ class ImagePlot:
         if normalize:
             image = normalize_channel_centered(image, 0, -1.0, 1.0, 0.0)
             image = normalize_channel_centered(image, 1, -1.0, 1.0, 0.0)
-        return self.add_rgb_image(two_channel_to_positive_white_rgb(image),
-                                  **parameters)
+        return self.add_rgb_image(
+            two_channel_to_positive_white_rgb(image), **parameters)
 
-    def add_overlay(self, lightness_image, hue_image, normalize: bool = False,
-                    **parameters) -> 'ImagePlot':
+    def add_overlay(
+            self, lightness_image: tf.Tensor, hue_image: tf.Tensor,
+            normalize: bool = False, **parameters: typing.Any) -> 'ImagePlot':
         """
             Displays two single signed channel images merged.
 
@@ -253,17 +283,26 @@ class ImagePlot:
             :param parameters: See ImagePlot class docstring.
             :return: self
         """
+
+        lightness_image = validate_image(lightness_image, 1, "lightness_image")
+        hue_image = validate_image(hue_image, 1, "hue_image")
         return self.add_two_channel_positive_white(
             tf.concat([hue_image, lightness_image], -1),
             normalize, **parameters
         )
 
     def new_row(self) -> 'ImagePlot':
+        """
+            Place all additional images on a following row.
+
+            :return: self
+        """
         self._next_position = [self._next_position[0] + 1, 0]
         self._rows += 1
         return self
 
-    def add_rgb_image(self, image, **parameters) -> 'ImagePlot':
+    def add_rgb_image(
+            self, image: tf.Tensor, **parameters: typing.Any) -> 'ImagePlot':
         """
             Add a standard RGB (red green blue) images
 
@@ -271,6 +310,7 @@ class ImagePlot:
             :param parameters: See ImagePlot class docstring.
             :return: self
         """
+        image = validate_image(image, 3)
         self._images.append(image)
         self._parameters.append(parameters)
         # Assign the current index to the current position
@@ -281,14 +321,50 @@ class ImagePlot:
         return self
 
 
-def channel_absolute(image, channel: int):
+def validate_image(
+        image: tf.Tensor, channel_count: int = None, image_name: str = None
+        ) -> tf.Tensor:
+    """
+        Check that the provided tensor is a valid image, and return a
+        normalised version.
+
+    :param image: A tensor encoding an image, with shape ([sample], row,
+        column, [channel])
+    :param channel_count: The number of channels the image should have.
+    :param image_name: Used in error message if the image does not pass
+        validation.
+    :return: A normalised version of the input image.
+    """
+
+    # TODO: add support for other checks and normalisations. For example
+    #  leading (sample) and trailing (singleton channel) axes.
+
+    def descriptor() -> str:
+        result = 'Image tensor '
+        if image_name is not None:
+            result += '"' + image_name + '" '
+        result += 'of shape ' + str(image.shape)
+        return result
+
+    if channel_count is not None and image.shape[-1] != channel_count:
+        raise ValueError(
+            descriptor() + ' has wrong number of channels, requires '
+            + str(channel_count))
+    return image
+
+
+def channel_absolute(image: tf.Tensor, channel: int) -> tf.Tensor:
     """ Make the values in a channel positive. """
-    return (tensor_tools.Selection().select_channel(-1, channel)
-            .transform(tf.abs, image))
+    return (
+        tensor_tools.Selection().select_channel(-1, channel)
+        .transform(tf.abs, image)
+    )
 
 
-def remap_channel(image, channel: int, input_minimum, input_maximum,
-                  output_minimum, output_maximum) -> tf.Tensor:
+def remap_channel(
+        image: tf.Tensor, channel: int, input_minimum: float,
+        input_maximum: float, output_minimum: float, output_maximum: float
+        ) -> tf.Tensor:
     """
         Shift and scale a channel so it fits into a new range.
 
@@ -314,7 +390,8 @@ def remap_channel(image, channel: int, input_minimum, input_maximum,
 
 
 def normalize_channel_centered(
-        image, channel: int, minimum, maximum, center_from) -> tf.Tensor:
+        image: tf.Tensor, channel: int, minimum: float, maximum: float,
+        center_from: float) -> tf.Tensor:
     """
         Scale the channel values to fill the given range as much as possible,
             whilst preserving the center.
@@ -337,12 +414,15 @@ def normalize_channel_centered(
         scaled_data = normalized_data * (maximum - minimum) / 2.0
         return scaled_data + ((maximum + minimum) / 2.0)
 
-    return (tensor_tools.Selection().select_channel(-1, channel)
-            .transform(normalize_centered, image))
+    return (
+        tensor_tools.Selection().select_channel(-1, channel)
+        .transform(normalize_centered, image)
+    )
 
 
 def normalize_channel_full_range(
-        image, channel: int, minimum, maximum) -> tf.Tensor:
+        image: tf.Tensor, channel: int, minimum: float, maximum: float
+        ) -> tf.Tensor:
     """
         Scale the channel values to fill the given range fully.
 
@@ -360,11 +440,40 @@ def normalize_channel_full_range(
         scale_factor = (maximum - minimum) / (start_maximum - start_minimum)
         return (data - start_minimum) * scale_factor + minimum
 
-    return (tensor_tools.Selection().select_channel(-1, channel)
-            .transform(normalize_full_range, image))
+    return (
+        tensor_tools.Selection().select_channel(-1, channel)
+        .transform(normalize_full_range, image)
+    )
 
 
-def single_channel_to_false_color_rgb(image) -> tf.Tensor:
+def normalize_channels_full_range(
+        image: tf.Tensor, channels: typing.Iterable[int], minimum: float,
+        maximum: float) -> tf.Tensor:
+    """
+        Scale the channel values to fill the given range fully. This
+        implementation may not be efficient.
+
+        :param image: The image or images tensor to transform.
+        :param channels: The channels to transform in the last axis of the
+            image tensor.
+        :param minimum: The minimum of the output range.
+        :param maximum: The maximum of the output range.
+        :return: The transformed tensor.
+    """
+    start_minimum = tf.reduce_min(tf.gather(image, channels, axis=-1))
+    start_maximum = tf.reduce_max(tf.gather(image, channels, axis=-1))
+
+    def normalize_full_range(data):
+        scale_factor = (maximum - minimum) / (start_maximum - start_minimum)
+        return (data - start_minimum) * scale_factor + minimum
+
+    for channel in channels:
+        selection = tensor_tools.Selection().select_channel(-1, channel)
+        image = selection.transform(normalize_full_range, image)
+    return image
+
+
+def single_channel_to_false_color_rgb(image: tf.Tensor) -> tf.Tensor:
     """
         Maps values in the range -1.0 to 1.0 to colors White, Blue, Black,
         Orange, White
@@ -391,7 +500,15 @@ def single_channel_to_false_color_rgb(image) -> tf.Tensor:
     return np.apply_along_axis(transform_pixel, -1, image)
 
 
-def two_channel_to_positive_saturated_rgb(image):
+def rgb_to_greyscale(image: tf.Tensor) -> tf.Tensor:
+    """
+        Convert a three channel red-green-blue image tensor to a single channel
+        greyscale image tensor.
+    """
+    return tf.reduce_mean(image, axis=-1, keepdims=True)
+
+
+def two_channel_to_positive_saturated_rgb(image: tf.Tensor) -> tf.Tensor:
     """
         Maps values from [0.0, 0.0] to [1.0, 1.0] to rgb colors.
 
@@ -416,7 +533,7 @@ def two_channel_to_positive_saturated_rgb(image):
     return np.apply_along_axis(transform_pixel, -1, image)
 
 
-def two_channel_to_positive_white_rgb(image):
+def two_channel_to_positive_white_rgb(image: tf.Tensor) -> tf.Tensor:
     """
         Maps values from [-1.0, -1.0] to [1.0, 1.0] to rgb colors.
 
@@ -424,6 +541,7 @@ def two_channel_to_positive_white_rgb(image):
         the first channel. Lighter colors from black to white correspond to
         increasing values in the second channel.
     """
+    image = validate_image(image, 2)
 
     def transform_pixel(pixel_vector):
         # Change the range of the first channel to [0.0, 1.0]

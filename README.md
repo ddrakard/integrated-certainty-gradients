@@ -20,8 +20,6 @@ Before using this code, install the required modules listed under `install_requi
 
 Run the code by executing the `main.py` script in the `src` directory: `python main.py` or `python3 main.py`.
 
-Run the tests by executing `python3 -m unittest` from inside the `src` directory.
-
 ## Example
 
 The image below shows an example of Integrated Certainty Gradients attribution.

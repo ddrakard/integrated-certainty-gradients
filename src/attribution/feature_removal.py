@@ -1,3 +1,10 @@
+"""
+    Feature attribution methods based on 'removing' / 'ablating' individual
+    features.
+"""
+
+import typing
+
 import numbers
 import tensorflow as tf
 import numpy as np
@@ -8,7 +15,8 @@ import tensor_tools
 
 
 def simple_feature_removal(
-        data, model: keras.Model, baseline=0.) -> tf.Tensor:
+        data: tf.Tensor, model: keras.Model,
+        baseline: typing.Union[float, tf.Tensor] = 0.) -> tf.Tensor:
     """
         Calculate an attribution by replacing each value with a value taken
         from a baseline, and returning the effect the replacement has on the
@@ -49,7 +57,8 @@ def simple_feature_removal(
         result_shape)
 
 
-def double_sided_feature_removal(data, model: keras.Model) -> tf.Tensor:
+def double_sided_feature_removal(
+        data: tf.Tensor, model: keras.Model) -> tf.Tensor:
     """
         Calculate an attribution by replacing each value with a minimum (0.0)
         value and then a maximum (1.0) value, and returning the sum of the
@@ -62,12 +71,13 @@ def double_sided_feature_removal(data, model: keras.Model) -> tf.Tensor:
             indicating what effect replacing the data value at that location
             has on the probability of the predicted class.
     """
-    up = simple_feature_removal(data, model)
-    down = simple_feature_removal(data, model, 1.0)
-    return (up + down) / 2.0
+    high = simple_feature_removal(data, model)
+    low = simple_feature_removal(data, model, 1.0)
+    return (high + low) / 2.0
 
 
-def feature_certainty_removal(data, model: keras.Model) -> tf.Tensor:
+def feature_certainty_removal(
+        data: tf.Tensor, model: keras.Model) -> tf.Tensor:
     """
         Calculate an attribution by replacing the certainty at each point with
         0.0 and returning the effects the replacements have on the probability

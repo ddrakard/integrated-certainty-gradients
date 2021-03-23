@@ -1,11 +1,20 @@
+"""
+    Tools for working with Keras models.
+"""
+
 import os
 
 import keras
 
 
-def ensure_directory_exists(path: str):
+def ensure_directory_exists(path: str) -> None:
+    """
+        Make sure the path is a directory, create it if it does not exist.
+    """
     if not os.path.exists(path):
         os.makedirs(path)
+    elif not os.path.isdir(path):
+        raise Exception('Path is not a directory: ' + path)
 
 
 def unique_path(
@@ -57,10 +66,14 @@ def latest_version(
     last_path = None
     if os.path.exists(base_path):
         last_path = base_path
-    if os.path.exists(base_path + index_separator + '0'):
+    elif os.path.exists(base_path + index_separator + '0'):
         last_path = base_path + index_separator + '0'
-    if os.path.exists(base_path + index_separator + '1'):
+    elif os.path.exists(base_path + index_separator + '1'):
         last_path = base_path + index_separator + '1'
+    else:
+        raise FileNotFoundError(
+            'No initial path similar to the base path: ' + str(base_path)
+            + ' was found.')
     index = 2
     while True:
         candidate_path = base_path + index_separator + str(index) + extension
@@ -72,6 +85,13 @@ def latest_version(
 
 
 def safe_save_model(model: keras.Model, base_path: str) -> None:
+    """
+        Save the model auto-creating a directory so it will not overwrite or
+        be blocked by an existing model.
+
+        :param model: The model to save.
+        :param base_path: The directory in which to save the model.
+    """
     keras.models.save_model(
         model,
         unique_path(base_path, ''),
@@ -84,4 +104,7 @@ def safe_save_model(model: keras.Model, base_path: str) -> None:
 
 
 def load_latest_model(base_path: str) -> keras.Model:
+    """
+        Load the latest model saved by safe_save_model in a directory.
+    """
     return keras.models.load_model(latest_version(base_path, ''))

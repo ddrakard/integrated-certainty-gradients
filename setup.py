@@ -17,10 +17,12 @@ setup(
     install_requires=[
         'tensorflow',
         'keras',
-        'tensorflow_probability',
+        'tensorflow-probability',
         'numpy',
         'matplotlib',
-        'pandas'
+        'pandas',
+        'tensorflow-datasets',
+        'pylint'
     ],
     zip_safe=False
 )

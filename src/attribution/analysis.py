@@ -1,10 +1,32 @@
+"""
+    This module analyses the comparison between various attribution methods.
+"""
+
+import typing
+
+import tensorflow as tf
+
 import image_tensors
 import tensor_tools
-import tensorflow as tf
 
 
 def show_attribution_distribution(
-        attribution_function, dataset, vectorised=False, samples=100):
+        attribution_function: typing.Callable, dataset: tf.Tensor,
+        vectorised: bool = False, samples: int = 100) -> None:
+    """
+        Displays the average importance of input features according to
+        an attribution function.
+
+        Importance for negative attribution, positive attribution, absolute
+        attribution and mean contribution are shown.
+
+        :param attribution_function: The function that returns an attribution
+            for an input vector.
+        :param dataset: The dataset of input vectors.
+        :param vectorised: Perform the attribution function in parallel. This
+            may use a lot of memory.
+        :param samples: The number of samples to average over.
+    """
     if vectorised:
         attributions = attribution_function(
             tensor_tools.pick(dataset, samples))

@@ -1,3 +1,8 @@
+"""
+    Capabilities associated with the Integrated Gradients attribution method.
+"""
+
+import typing
 from typing import List
 
 import keras
@@ -88,7 +93,17 @@ def integrated_gradients(
             amount that the corresponding pixel in the input images contributes
             to the output prediction (its salience).
     """
-    class_count = 10
+    class_count = model.output_shape[-1]
+    if output_class is not None:
+        if output_class < 0:
+            raise ValueError(
+                'The output class index (' + str(output_class)
+                + ') should be 0 or greater.')
+        if output_class >= class_count:
+            raise ValueError(
+                'The output class index (' + str(output_class)
+                + ') should be less than the number of output classes ('
+                + str(class_count) + ').')
     if len(images.shape) == 3:
         images = tf.expand_dims(images, axis=0)
     if len(baseline.shape) == 3:
@@ -153,11 +168,21 @@ def integrated_gradients(
 
 
 def simple_integrated_gradients(
-        images: tf.Tensor, model: keras.Model, baseline_value,
+        images: tf.Tensor, model: keras.Model,
+        baseline_value: typing.Union[float, tf.Tensor],
         output_class: int = None) -> tf.Tensor:
     """
         Performs Integrated Gradients where the same baseline value is used for
         each pixel.
+
+        :param images: The images to calculate feature attribution for.
+        :param model: The model to calculate feature attribution for
+        :param baseline_value: The pixel value to be used as a baseline. It
+            may be a single axis tensor or a number.
+        :param output_class: The class probability to calculate attribution
+            for. If None then the predicted (highest probability) class will
+            be used.
+        :return: A tensor containing an attribution value for each pixel.
     """
     if (len(images.shape)) != 4:
         raise ValueError(
@@ -179,8 +204,8 @@ def simple_integrated_gradients(
 
 
 def double_sided_integrated_gradients(
-        images: tf.Tensor, model: keras.Model, minimum=0., maximum=1.,
-        output_class: int = None) -> tf.Tensor:
+        images: tf.Tensor, model: keras.Model, minimum: float = 0.,
+        maximum: float = 1., output_class: int = None) -> tf.Tensor:
     """
         Performs Integrated Gradients taking an average from the minimum
         (default 0.0) and maximum (default 1.0) baselines.
@@ -190,32 +215,3 @@ def double_sided_integrated_gradients(
     upper = simple_integrated_gradients(
         images, model, maximum, output_class=output_class)
     return (lower + upper) / 2.
-
-
-def image_certainty_integrated_gradients(
-        image: tf.Tensor, model: keras.Model, output_class: int = None
-        ) -> tf.Tensor:
-    """
-        Calculate the salience of each pixel to the prediction the model makes
-        for each image using the Integrated Uncertainty Gradients method.
-
-        The Integrated Uncertainty Gradients method builds upon the Integrated
-        Gradients method (integrated_gradients). Instead of taking a user
-        supplied baseline, it operates on data with uncertainty semantics,
-        which implies a canonical baseline of maximum uncertainty.
-
-        :param image: The image for which the salience of input pixels to the
-            prediction is desired to be known.
-        :param model: The model which is making the predictions.
-        :param output_class: The class for which the prediciton probability
-            attributions are calculated. If None, the class predicted by the
-            model for each image is used.
-        :return: Greyscale images where the value of each pixel represents the
-            amount that the corresponding pixel in the input images contributes
-            to the output prediction (its salience).
-    """
-    zero_confidence_vector = [np.float32(1.)] * image.shape[-1]
-    zero_confidence_vector[-1] = np.float32(0.)
-    baseline = image * zero_confidence_vector
-    return integrated_gradients(
-        image, model, baseline, output_class=output_class)
